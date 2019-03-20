@@ -1580,7 +1580,7 @@ execute </xsl:text>
       res_title, 
       res_description, 
       content_level, content_type, reference_url, 
-      source_format, source_value, version, 
+      source_value, source_format, version, 
       rev, rstat, harvestedFromDate, harvestedFromID, 
       harvestedFrom, tag, validationLevel
    ) VALUES ( 
