@@ -249,40 +249,7 @@ namespace registry
             return sr;
         }
 
-        //Currently unused: there was a frequent issue in the early IVOA with accessURLs not containing a trailing
-        // ? or & where required in the standard. There is now more validation across the IVOA and also standard
-        //services where this no longer makes sense. Function left in case requested removal of this feature
-        //discloses the problem is still more rampant than the problems of removing it.
-        /*private static string CleanUpBaseURL(string xml)
-        {
-            int startbaseurl = -1;
-            int endbaseurl = -1;
-
-            startbaseurl = xml.IndexOf("<accessURL use=\"base\"");
-            while( startbaseurl > -1 )
-            {
-                startbaseurl = xml.IndexOf('>', startbaseurl) +1;
-                endbaseurl = xml.IndexOf('<', startbaseurl);
-                string val = xml.Substring(startbaseurl, endbaseurl - startbaseurl);
-
-                if ( val.Length > 0 && (!val.Trim().EndsWith("?") && !val.Trim().EndsWith("&amp;")))
-                {
-                    if (val.IndexOf('?') >= 0)
-                    {
-                        xml = xml.Remove(startbaseurl, val.Length).Insert(startbaseurl, val.Trim() + "&amp;");
-                    }
-                    else
-                    {
-                        xml = xml.Remove(startbaseurl, val.Length).Insert(startbaseurl, val.Trim() + '?');
-                    }
-                }
-                startbaseurl = xml.IndexOf("<accessURL use=\"base\"", endbaseurl);
-            }
-
-            return xml;
-        }*/
-
-        //tdower todo - clean this up. regexp.
+        //todo with c# date input/output formatting?
         private static string CleanUpOAIDates(string xml)
         {
             string tempString = xml;
@@ -327,17 +294,6 @@ namespace registry
                     newdateString = updatedString.Replace(timeString, timeString + "Z");
                     tempString = tempString.Replace(updatedString, newdateString);
                 }
-
-
-                //temp test for mangled harvested records
-                index = tempString.IndexOf("xsi:schemaLocation");
-                if (index > -1)
-                {
-                    firstQuote = tempString.IndexOf('\"', index);
-                    secondQuote = tempString.IndexOf('\"', firstQuote + 1);
-                    tempString = tempString.Replace(tempString.Substring(index, secondQuote - index + 1), "");
-                }
-
             }
             catch( Exception e )
             {
@@ -431,20 +387,6 @@ namespace registry
                     }
                 }
             }
-
-            //try {
-            //    System.Xml.XmlTextWriter xwriter = new System.Xml.XmlTextWriter("c:\\projects\\nvolog\\temp.txt", Encoding.UTF8);
-            //for (int i = 0; i < docs.Length; ++i)
-            //{
-            //    if (docs[i] != null)
-            //    {
-            //        docs[i].WriteTo(xwriter);       
-            //    }
-            //}
-            //xwriter.Close();
-            //}
-            //catch( Exception) {}
-
             return docs;
         }
 
@@ -708,15 +650,17 @@ namespace registry
                     sqlDA.Fill(resource);
                     table = CreateResourceVOTable(resource, option);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    table = new ivoa.altVOTable.VOTABLE();
+                    //table = new ivoa.altVOTable.VOTABLE();
+                    table = CreateErrorVOTable(ex.Message);
                 }
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                table = new ivoa.altVOTable.VOTABLE();
+                //table = new ivoa.altVOTable.VOTABLE();
+                table = CreateErrorVOTable(ex.Message);
             }
             finally
             {
@@ -774,10 +718,23 @@ namespace registry
 
 			return odc;
 		}
-	
-	}
 
-    //put this in its own file when i can touch csproj
+        protected static VOTABLE CreateErrorVOTable(string errortext)
+        {
+            VOTABLE vot = new VOTABLE();
+
+            vot.version = VOTABLEVersion.Item11;
+            vot.RESOURCE = new ivoa.altVOTable.Resource[1];
+            vot.RESOURCE[0] = new ivoa.altVOTable.Resource();
+            vot.RESOURCE[0].type = ResourceType.results;
+            vot.RESOURCE[0].ID = "ERROR";
+            vot.RESOURCE[0].name = errortext;
+
+            return vot;
+        }
+   
+    }
+
 
     //This is quick and dirty and very inefficient for frequent writes, but it doesn't hog a file handle, keeping users
     //from moving the file and suchlike. If usage increases, keep a  file handle,

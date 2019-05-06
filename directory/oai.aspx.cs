@@ -387,8 +387,7 @@ namespace nvo.oai
         }
 
         //Appends empty params to query string before sending off to web service.
-        //the web service will require all optional parameters because function
-        //overloading for web services is non-compliant and unpleasant.
+        //the web service will require all optional parameters
         bool AppendEmptyParameters(ref StringBuilder sb, string verb, System.Collections.Specialized.NameValueCollection collection)
         {
             bool bAddedParams = false;
@@ -423,8 +422,8 @@ namespace nvo.oai
             } return bAddedParams;
         }
 
-        // This allows schema and namespace information not kept in individual resource records
-        // to be added to the OAI response for validation.
+        // This allows schema and namespace information to be manipulated the OAI response for validation.
+        // .NET's sense of ordering and some Java-based validators do not agree insome cases
 		void filterXML(string partURL)
 		{
             //creates local request
@@ -439,15 +438,15 @@ namespace nvo.oai
 				Encoding encode = System.Text.Encoding.GetEncoding("utf-8");
 				StreamReader stream = new StreamReader( receiveStream, encode);
 				string line = null;
+                //bool doneHeaders = false;
 
-                //Read the stream and correct namespace issues on ouput.
-                //This should be done lower on the stack.
-                bool doneNamespaces = false;
-				while ((line = stream.ReadLine())!=null) 
-				{
-                    if (!doneNamespaces)
-                        line = line.Replace(" schemaLocation", " xsi:schemaLocation");
-                    //todo: improve BuildSchemaLocation, call only for queries that display full VOResources.
+                while ((line = stream.ReadLine()) != null)
+                {
+                    if(/*!doneHeaders &&*/ line.Contains(" schemaLocation"))
+                    {
+                        line = line.Replace("schemaLocation", "xsi:schemaLocation");
+                        //doneHeaders = true;
+                    }
                     Response.Output.WriteLine(line);
 				}
 			}

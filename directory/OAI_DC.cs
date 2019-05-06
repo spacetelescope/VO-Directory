@@ -1,16 +1,16 @@
 ﻿using System;
 using System.Data;
-
 using oai_dc;
 using oai;
 
 using log4net;
 
 namespace registry
-{ 
+{
+
      class OAI_DC
     {
-		private static readonly ILog log = LogManager.GetLogger(typeof(OAI_DC));
+        private static readonly ILog log = LogManager.GetLogger(typeof(OAI_DC));
         public static oai_dc.oai_dcType CreateOAIDC(DataRow dr)
         {
             oai_dc.oai_dcType odt = new oai_dc.oai_dcType();
@@ -44,16 +44,6 @@ namespace registry
 
             odt.Items[ind++] = new elementType();
 			odt.Items[5].Value = GetOAIDatestamp(((DateTime) dr["updated"]), oai.granularityType.YYYYMMDDThhmmssZ);
-
-            odt.recordStatus = string.Empty;
-            if ((int)dr["rstat"] == 3)
-                odt.recordStatus = "deleted";
-            else if ((int)dr["rstat"] == 2)
-                odt.recordStatus = "inactive";
-            else if ((int)dr["rstat"] == 1)
-                odt.recordStatus = "active";
-            else if ((int)dr["rstat"] == 0)
-              odt.recordStatus = "deprecated";
 
             return odt;
         }

@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.ComponentModel;
 using System.Data;
-using System.Diagnostics;
 using System.Web;
 using System.Web.Services;
 using System.Xml;
@@ -11,8 +10,6 @@ using System.IO;
 using System.Text;
 using System.Data.SqlClient;
 using oai;
-using oai_dc;
-using ivoa.net.ri1_0.server;
 using log4net;
 using System.Globalization;
 
@@ -159,8 +156,7 @@ namespace registry
 		}
 
 		// WEB SERVICE OAI METHOD:  RecordType
-		// Returns detailed record structure
-		
+		// Returns detailed record structure		
 		[WebMethod]
 		public OAIPMHtype GetRecord(string identifier, string metadataPrefix)
 		{
@@ -179,11 +175,6 @@ namespace registry
 			recordType recT = new recordType();
 			GetRecordType grecT = new GetRecordType();
 
-			Registry reg = new Registry();
-            System.Xml.XmlDocument[] reses = reg.QueryRIResourceXMLDocAllResources("resource.ivoid='" + identifier + "'", true, true);
-            if (reses.Length == 0 || reses[0] == null)
-                return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
-
             recT.header = new headerType();
             recT.header.identifier = identifier;
             if (IsManagedAuthority(recT.header.identifier))
@@ -192,25 +183,55 @@ namespace registry
                 recT.header.setSpec[0] = managedSet;
             }
 
-            try
+            Registry reg = new Registry();
+            if (metadataPrefix == "ivo_vor")
             {
-                recT.header.datestamp = reses[0].DocumentElement.Attributes["updated"].Value;
-                if( recT.header.datestamp.Contains(".") )
-                    recT.header.datestamp = recT.header.datestamp.Remove(recT.header.datestamp.LastIndexOf('.'));
+                System.Xml.XmlDocument[] reses = reg.QueryRIResourceXMLDocAllResources("resource.ivoid='" + identifier + "'", true, true);
+                if (reses.Length == 0 || reses[0] == null)
+                    return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
+                try
+                {
+                    recT.header.datestamp = reses[0].DocumentElement.Attributes["updated"].Value;
+                    if (recT.header.datestamp.Contains("."))
+                        recT.header.datestamp = recT.header.datestamp.Remove(recT.header.datestamp.LastIndexOf('.'));
 
-                if (reses[0].DocumentElement.Attributes["status"].Value.ToLower().CompareTo("deleted") == 0)
-                {
-                    recT.header.status = statusType.deleted;
-                    recT.header.statusSpecified = true;
+                    if (reses[0].DocumentElement.Attributes["status"].Value.ToLower().CompareTo("deleted") == 0)
+                    {
+                        recT.header.status = statusType.deleted;
+                        recT.header.statusSpecified = true;
+                    }
+                    else
+                    {
+                        recT.metadata = reses[0].DocumentElement;
+                    }
                 }
-                else
+                catch (Exception)
                 {
-                    recT.metadata = reses[0].DocumentElement;
+                    return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
                 }
             }
-            catch(Exception)
+            else if( metadataPrefix == "oai_dc")
             {
-                return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
+                try
+                {
+                    oai_dc.oai_dcType[] odc = reg.QueryOAIDC("status = 'active' and resource.ivoid='" + identifier + "'", null);
+                    if (odc.Length == 0)
+                        return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
+                    XmlElement docElement = GetElementFromOAIDC(odc[0]);
+                    recT.metadata = docElement;
+
+                    recT.header.identifier = recT.metadata.GetElementsByTagName("identifier")[0].InnerXml;
+                    recT.header.datestamp = recT.metadata.GetElementsByTagName("date")[0].InnerXml;
+
+                    if (IsManagedAuthority(recT.header.identifier))
+                        recT.header.setSpec = new string[2] { "ivo_vor", managedSet };
+                    else
+                        recT.header.setSpec = new string[1] { "ivo_vor" };
+                }
+                catch (Exception ex)
+                {
+                    return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
+                }
             }
 
             oaiT.Items = new object[1];
@@ -423,7 +444,7 @@ namespace registry
 			return oaiT;
 		}
 
-		// WEB SERVICE OAI METHOD:  ListRecords
+		// WEB SERVICE OAI METHOD:  ListIdentifiers
 		// Returns detailed record structure
 	    [WebMethod(Description="Returns list of records - OAI")]
 		public OAIPMHtype ListRecords(string from, string metadataPrefix, string until, string set, string resumptionToken)
@@ -491,7 +512,7 @@ namespace registry
                 rqT.metadataPrefix = metadataPrefix;
             if (untilDate != null)
                 rqT.until = untilDate.Value.ToString(ISO8601Date);
-            if (set != null && set == managedSet) //the only set we're using.
+            if (set != null && set == managedSet) //the only one we're using.
                 rqT.set = set;
 			oaiT.request = rqT;
 
@@ -544,7 +565,6 @@ namespace registry
 					
 					try 
 					{
-
                         lisT.record[ii].metadata = vod[ii].DocumentElement;
 
 						headerType ht = new headerType();
@@ -552,18 +572,13 @@ namespace registry
 
                         ht.datestamp = vod[ii].DocumentElement.Attributes["updated"].Value;
 						lisT.record[ii].header = ht;
-
-
-                        //OAI-PMH validator - OAI2.5.1: An OAI record with status deleted may not contain a resource document.
-                        //errata to the standard notes this means 'metadata', but headers remain if registry keeps track of deletions.
+		
                         if (vod[ii].DocumentElement.Attributes["status"].Value.ToLower().CompareTo("deleted") == 0 )
 						{
 							ht.status = statusType.deleted;
 							ht.statusSpecified = true;
 							lisT.record[ii].header.status = ht.status;
-                            lisT.record[ii].metadata = null;
-                        }
-
+						}
                         if (IsManagedAuthority(ht.identifier))
                         {
                             ht.setSpec = new string[1];
@@ -604,26 +619,13 @@ namespace registry
                 for (int ii = start; ii < end; ++ii)
 				{
 					lisT.record[ii] = new recordType();
-                    headerType ht = new headerType();
-
-                    try 
+					try 
 					{
-                        //todo: MASTVO-164 for OAI-DC
-                        //OAI-PMH validator - OAI2.5.1: An OAI record with status deleted may not contain a resource document.
-                        //errata to the standard notes this means 'metadata', but headers remain if registry keeps track of deletions.
-                        XmlElement recordMetadata = GetElementFromOAIDC(odc[ii]);                     
-                        if(odc[ii].recordStatus == "deleted")
-                        {
-                            ht.status = statusType.deleted;
-                            ht.statusSpecified = true;
-                            lisT.record[ii].metadata = null;
-                        }
-                        else {
-                            lisT.record[ii].metadata = recordMetadata;
-                        }
+						lisT.record[ii].metadata = GetElementFromOAIDC(odc[ii]);
 
-                        ht.identifier = recordMetadata.GetElementsByTagName("identifier")[0].InnerXml;
-                        ht.datestamp = recordMetadata.GetElementsByTagName("date")[0].InnerXml;
+                        headerType ht = new headerType();
+                        ht.identifier = lisT.record[ii].metadata.GetElementsByTagName("identifier")[0].InnerXml;
+                        ht.datestamp = lisT.record[ii].metadata.GetElementsByTagName("date")[0].InnerXml;
                         if (IsManagedAuthority(ht.identifier))
                             ht.setSpec = new string[2] { "ivo_vor", managedSet };
                         else
@@ -693,8 +695,10 @@ namespace registry
             if (recordIVO_VOR > 0)
             {
                 metaF[0] = new metadataFormatType();
+                //metaF[0].metadataNamespace = "http://www.ivoa.net/xml/VOResource/v0.10";
                 metaF[0].metadataNamespace = "http://www.ivoa.net/xml/VOResource/v1.0";
                 metaF[0].metadataPrefix = "ivo_vor";
+                //metaF[0].schema = "http://www.ivoa.net/xml/VOResource/v0.10/VOResource-v0.10.xsd";
                 metaF[0].schema = "http://www.ivoa.net/xml/VOResource/v1.0";
             }
             if (recordOAI_DC > 0)

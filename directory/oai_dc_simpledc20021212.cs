@@ -19,7 +19,10 @@ namespace oai_dc {
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://www.openarchives.org/OAI/2.0/oai_dc/")]
     [System.Xml.Serialization.XmlRootAttribute("dc", Namespace="http://www.openarchives.org/OAI/2.0/oai_dc/", IsNullable=false)]
     public class oai_dcType {
-        
+
+        [System.Xml.Serialization.XmlAttribute()]
+        public string schemaLocation = "http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd";
+
         /// <remarks/>
         [System.Xml.Serialization.XmlElementAttribute("subject", typeof(elementType), Namespace="http://purl.org/dc/elements/1.1/")]
         [System.Xml.Serialization.XmlElementAttribute("rights", typeof(elementType), Namespace="http://purl.org/dc/elements/1.1/")]
@@ -43,9 +46,6 @@ namespace oai_dc {
         [System.Xml.Serialization.XmlElementAttribute("ItemsElementName")]
         [System.Xml.Serialization.XmlIgnoreAttribute()]
         public ItemsChoiceType[] ItemsElementName;
-
-        [System.Xml.Serialization.XmlIgnoreAttribute()]
-        public string recordStatus;
     }
     
     /// <remarks/>
