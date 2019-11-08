@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.ComponentModel;
 using System.Data;
-using System.Diagnostics;
 using System.Web;
 using System.Web.Services;
 using System.Xml;
@@ -11,8 +10,6 @@ using System.IO;
 using System.Text;
 using System.Data.SqlClient;
 using oai;
-using oai_dc;
-using ivoa.net.ri1_0.server;
 using log4net;
 using System.Globalization;
 
@@ -159,8 +156,7 @@ namespace registry
 		}
 
 		// WEB SERVICE OAI METHOD:  RecordType
-		// Returns detailed record structure
-		
+		// Returns detailed record structure		
 		[WebMethod]
 		public OAIPMHtype GetRecord(string identifier, string metadataPrefix)
 		{
@@ -179,11 +175,6 @@ namespace registry
 			recordType recT = new recordType();
 			GetRecordType grecT = new GetRecordType();
 
-			Registry reg = new Registry();
-            System.Xml.XmlDocument[] reses = reg.QueryRIResourceXMLDocAllResources("resource.ivoid='" + identifier + "'", true, true);
-            if (reses.Length == 0 || reses[0] == null)
-                return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
-
             recT.header = new headerType();
             recT.header.identifier = identifier;
             if (IsManagedAuthority(recT.header.identifier))
@@ -192,25 +183,55 @@ namespace registry
                 recT.header.setSpec[0] = managedSet;
             }
 
-            try
+            Registry reg = new Registry();
+            if (metadataPrefix == "ivo_vor")
             {
-                recT.header.datestamp = reses[0].DocumentElement.Attributes["updated"].Value;
-                if( recT.header.datestamp.Contains(".") )
-                    recT.header.datestamp = recT.header.datestamp.Remove(recT.header.datestamp.LastIndexOf('.'));
+                System.Xml.XmlDocument[] reses = reg.QueryRIResourceXMLDocAllResources("resource.ivoid='" + identifier + "'", true, true);
+                if (reses.Length == 0 || reses[0] == null)
+                    return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
+                try
+                {
+                    recT.header.datestamp = reses[0].DocumentElement.Attributes["updated"].Value;
+                    if (recT.header.datestamp.Contains("."))
+                        recT.header.datestamp = recT.header.datestamp.Remove(recT.header.datestamp.LastIndexOf('.'));
 
-                if (reses[0].DocumentElement.Attributes["status"].Value.ToLower().CompareTo("deleted") == 0)
-                {
-                    recT.header.status = statusType.deleted;
-                    recT.header.statusSpecified = true;
+                    if (reses[0].DocumentElement.Attributes["status"].Value.ToLower().CompareTo("deleted") == 0)
+                    {
+                        recT.header.status = statusType.deleted;
+                        recT.header.statusSpecified = true;
+                    }
+                    else
+                    {
+                        recT.metadata = reses[0].DocumentElement;
+                    }
                 }
-                else
+                catch (Exception)
                 {
-                    recT.metadata = reses[0].DocumentElement;
+                    return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
                 }
             }
-            catch(Exception)
+            else if( metadataPrefix == "oai_dc")
             {
-                return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
+                try
+                {
+                    oai_dc.oai_dcType[] odc = reg.QueryOAIDC("status = 'active' and resource.ivoid='" + identifier + "'", null);
+                    if (odc.Length == 0)
+                        return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
+                    XmlElement docElement = GetElementFromOAIDC(odc[0]);
+                    recT.metadata = docElement;
+
+                    recT.header.identifier = recT.metadata.GetElementsByTagName("identifier")[0].InnerXml;
+                    recT.header.datestamp = recT.metadata.GetElementsByTagName("date")[0].InnerXml;
+
+                    if (IsManagedAuthority(recT.header.identifier))
+                        recT.header.setSpec = new string[2] { "ivo_vor", managedSet };
+                    else
+                        recT.header.setSpec = new string[1] { "ivo_vor" };
+                }
+                catch (Exception ex)
+                {
+                    return makeError(OAIPMHerrorcodeType.idDoesNotExist, identifier);
+                }
             }
 
             oaiT.Items = new object[1];
@@ -557,7 +578,9 @@ namespace registry
 							ht.status = statusType.deleted;
 							ht.statusSpecified = true;
 							lisT.record[ii].header.status = ht.status;
-						}
+                            lisT.record[ii].metadata = null;
+
+                        }
                         if (IsManagedAuthority(ht.identifier))
                         {
                             ht.setSpec = new string[1];
