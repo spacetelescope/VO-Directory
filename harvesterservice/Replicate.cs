@@ -8,13 +8,14 @@ using registry;
 
 namespace Replicate
 {
+    //int used in DB and logging, do not change existing codes
     public enum HarvestStatus
     {
-        Success, //0
-        Failure,
-        PartialFailure,
-        NoRecords,
-        Unknown
+        Success = 0,
+        Failure = 1,
+        PartialFailure = 2,
+        NoRecords = 3,
+        Unknown = 4
     };
 
     class Replicate
