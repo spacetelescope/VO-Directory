@@ -1,19 +1,26 @@
 using System;
-using System.Configuration;
-using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Data;
 using System.Text;
 using log4net;
 
-using Replicate.registry;
 using registry;
 
 namespace Replicate
 {
-	class Replicate
+    //int used in DB and logging, do not change existing codes
+    public enum HarvestStatus
+    {
+        Success = 0,
+        Failure = 1,
+        PartialFailure = 2,
+        NoRecords = 3,
+        Unknown = 4
+    };
+
+    class Replicate
 	{
-		const int MLEN = 4000;
+		const int MAX_LEN_LOG = 4000;
         private static DateTime harvestingEpoch = DateTime.Parse("2000-JAN-01");
 
         //because we need to write to the log table, this is an admin connection
@@ -84,7 +91,7 @@ namespace Replicate
             return true;
 		}
 
-		public static bool writeEndLog(DateTime date,  string message, int status, string url )
+		public static bool writeEndLog(DateTime date,  string message, HarvestStatus status, string url )
 		{
 
 			SqlConnection conn = null;
@@ -92,16 +99,16 @@ namespace Replicate
             {
                 conn = new SqlConnection(connStr);
                 conn.Open();
-                if (message.Length > MLEN)
+                if (message.Length > MAX_LEN_LOG)
                 {
-                    message = message.Substring(0, MLEN);
+                    message = message.Substring(0, MAX_LEN_LOG);
                 }
                 message = message.Replace('\'', ' ');
                 message = message.Replace('<', '(').Replace('>', ')'); //raw record creating html in reporting errors: we don't really need it anyway.
 
                 string s = " update HarvesterLog set message=";
                 s += "'" + message + "',";
-                s += "status=" + status;
+                s += "status=" + (int)status;
                 s += " where [date]='" + date.ToString() + "' and ServiceURL = '" + url + "' ";
                 SqlCommand cmd = conn.CreateCommand();
                 cmd.CommandText = s;
@@ -129,12 +136,11 @@ namespace Replicate
             string rq = "select distinct ServiceUrl, RegistryID from Harvester where (DoHarvest = 1)";
             DataSet ds = reg.DSQuery(rq, dbAdmin);
             StringBuilder sb = new StringBuilder();
-            int stat = 0;
             Console.Out.WriteLine("Harvesting ....\n");
 
             foreach (DataRow dr in ds.Tables[0].Rows)
             {
-                stat = 0;
+                HarvestStatus stat = HarvestStatus.Success;
                 sb.Remove(0, sb.Length);
                 string url = (string)dr["ServiceUrl"];
                 string regid = (string)dr["RegistryID"];
@@ -156,7 +162,7 @@ namespace Replicate
                     sb.Append(" ");
                     try
                     {
-                        Console.Out.WriteLine("trying :" + url + " since (last success - 1 day) " + last);
+                        Console.Out.WriteLine("trying :" + url + " since (last success minus 1 day) " + last);
                         string res = harvest.HarvestOAI(url, regid, last, true, dbAdmin);
                         sb.Append(res);
                     }
@@ -164,15 +170,22 @@ namespace Replicate
                     {
 						log.Error ("Error harvesting from url " + url, e);
                         sb.Append(e);
-                        stat = 1;
+                        stat = HarvestStatus.Failure;
                     }
 
+                    // Ugly list of cases from experience that might have been an error:
                     string mes = sb.ToString();
-                    if( mes.Contains("Error harvesting from url"))
-                    if (mes.Contains("No Records to Harvest")) //test: in case of hidden timeout errors.
-                        stat = 3;
-                    else if (mes.Contains("Loaded 0 RESOURCES"))
-                        stat = 2;
+                    if (mes.Contains("Error harvesting from url"))
+                    {
+                        if (mes.Contains("No Records to Harvest")) //test: in case of hidden timeout errors.
+                            stat = HarvestStatus.NoRecords;
+                        else if (mes.Contains("Loaded 0 RESOURCES"))
+                            stat = HarvestStatus.PartialFailure;
+                    }
+                    else if (mes.Contains("Harvester Error"))
+                    {
+                        stat = HarvestStatus.Failure;
+                    }
                     else if (mes.Contains("Loaded") && mes.Contains("Got"))
                     {
                         string loaded = mes.Substring(mes.IndexOf("Loaded") + 7, mes.IndexOf("RESOURCES", mes.IndexOf("Loaded")) - (mes.IndexOf("Loaded") + 7)).Trim();
@@ -185,7 +198,7 @@ namespace Replicate
                             skipped = mes.Substring(skip + 8, mes.IndexOf("RESOURCES", skip) - (skip + 8)).Trim();
                         }
                         if ((Convert.ToInt32(skipped) + Convert.ToInt32(loaded)) != Convert.ToInt32(got))
-                            stat = 2;
+                            stat = HarvestStatus.PartialFailure;
                     }
                     if (sb.Length > 1000)
                     {

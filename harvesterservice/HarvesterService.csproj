@@ -153,23 +153,15 @@
     <Compile Include="Replicate.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="ReplicateInstaller.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="Runner.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="Settings.cs" />
+    <Compile Include="Runner.cs" />
     <Compile Include="Web References\registry\Reference.cs">
       <DependentUpon>Reference.map</DependentUpon>
       <SubType>code</SubType>
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
     </Compile>
-    <EmbeddedResource Include="ReplicateInstaller.resx">
-      <DependentUpon>ReplicateInstaller.cs</DependentUpon>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
+    <Content Include="InsertVOResource.xsl" />
+    <Content Include="InsertVOResource_RegTap.xsl" />
     <EmbeddedResource Include="Runner.resx">
       <DependentUpon>Runner.cs</DependentUpon>
       <SubType>Designer</SubType>
@@ -224,7 +216,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\directory\registry.csproj">
-      <Project>{030B00DA-2C47-40CC-B064-973EAD48B728}</Project>
+      <Project>{030b00da-2c47-40cc-b064-973ead48b728}</Project>
       <Name>registry</Name>
     </ProjectReference>
   </ItemGroup>

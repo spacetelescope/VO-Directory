@@ -146,16 +146,15 @@ declare @tableseq smallint;
       <!-- deprecate a resource with the same identifier as this one -->
       <xsl:choose>
         <xsl:when test="$existingrkey!=''">
-          <xsl:text>-- Replacing exising record: change the status of the old one before inserting 
-execute </xsl:text>
-         <xsl:value-of select="$rr"/>
-         <xsl:text>.deprecateresource '</xsl:text>
-         <xsl:value-of select="normalize-space(/*/identifier)"/>
-         <xsl:text>', </xsl:text>
-         <xsl:value-of select="$existingrkey"/>
-         <xsl:text>, @rev OUTPUT;
-
-</xsl:text>
+          <xsl:text>
+execute     </xsl:text>
+          <xsl:value-of select="$rr"/>
+          <xsl:text>.deprecateresource '</xsl:text>
+          <xsl:value-of select="normalize-space(/*/identifier)"/>
+          <xsl:text>', </xsl:text>
+          <xsl:value-of select="$existingrkey"/>
+          <xsl:text>, @rev OUTPUT;
+           </xsl:text>
         </xsl:when>
         <xsl:otherwise>
           <xsl:text>-- if this IVOID already exists, deprecate it.
@@ -260,6 +259,11 @@ execute </xsl:text>
          </xsl:apply-templates>
       </xsl:for-each>
       <xsl:for-each select="curation/creator">
+         <xsl:apply-templates select=".">
+            <xsl:with-param name="seq" select="position()"/>
+         </xsl:apply-templates>
+      </xsl:for-each>
+      <xsl:for-each select="curation/contact">
          <xsl:apply-templates select=".">
             <xsl:with-param name="seq" select="position()"/>
          </xsl:apply-templates>
@@ -886,7 +890,7 @@ execute </xsl:text>
          </xsl:choose>
       </xsl:param>
 
-      <xsl:if test="string-length(normalize-space(.)) &gt; 0">
+     <xsl:if test="string-length(normalize-space(.)) &gt; 0">
         <xsl:text>INSERT INTO </xsl:text>
         <xsl:value-of select="$rr"/>
         <xsl:text>.date (
@@ -1530,7 +1534,12 @@ execute </xsl:text>
      -->
    <xsl:template match="*" mode="table_resource">
       <xsl:variable name="tagval">
-         <xsl:apply-templates select="." mode="gettag"/>
+         <xsl:text>#</xsl:text>
+        <xsl:apply-templates select="." mode="gettag"/>
+        <xsl:if test="$tag!=''">
+          <xsl:value-of select="$tag"/>
+          <xsl:text>#</xsl:text>
+        </xsl:if>
       </xsl:variable>
 
       <xsl:variable name="rtype">
@@ -1571,7 +1580,7 @@ execute </xsl:text>
       res_title, 
       res_description, 
       content_level, content_type, reference_url, 
-      source_format, source_value, version, 
+      source_value, source_format, version, 
       rev, rstat, harvestedFromDate, harvestedFromID, 
       harvestedFrom, tag, validationLevel
    ) VALUES ( 
@@ -1639,7 +1648,7 @@ execute </xsl:text>
          <xsl:with-param name="valnodes" select="$harvestedFromEP"/>
       </xsl:call-template>  <xsl:text>, </xsl:text>
       <xsl:call-template name="mkstrval">
-         <xsl:with-param name="valnodes" select="$tag"/>
+         <xsl:with-param name="valnodes" select="$tagval"/>
       </xsl:call-template>  <xsl:text>, </xsl:text>
          <xsl:value-of select="$vlevel"/>
       <xsl:text>
@@ -2259,13 +2268,14 @@ execute </xsl:text>
    <!--
      -  create a date value 
      -->
-   <xsl:template name="mkdateval">
-      <xsl:param name="valnodes"/>
-
-      <xsl:call-template name="mkstrval">
-         <xsl:with-param name="valnodes" select="$valnodes"/>
-      </xsl:call-template>
-   </xsl:template>
+  <xsl:template name="mkdateval">
+    <xsl:param name="valnodes"/>
+    <xsl:text> convert(date, </xsl:text>
+    <xsl:call-template name="mkstrval">
+      <xsl:with-param name="valnodes" select="$valnodes"/>
+    </xsl:call-template>
+    <xsl:text> , 111) </xsl:text>
+  </xsl:template>
 
    <!--
      -  create a string value 
